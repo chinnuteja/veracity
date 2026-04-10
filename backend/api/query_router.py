@@ -239,27 +239,43 @@ def graph_search(query: str) -> tuple[list[ProductRecommendation], str]:
         )
 
     # Step 3: Score results based on intent match
+    # Generic stopwords that should NOT inflate ingredient scores
+    GENERIC_INGREDIENT_TERMS = {"tea", "herbal", "herbal tea", "green tea", "blend", "leaf", "leaves", "powder"}
+
     scored = []
     for r in results:
         score = 0
         reasons = []
 
+        # Health concerns are the PRIMARY sales driver — weight them heavily
         for concern in intent.get("health_concerns", []):
             for c in r.get("concerns", []):
                 if concern.lower() in c.lower():
-                    score += 3
+                    score += 10
                     reasons.append(f"Addresses '{c}'")
+            # Also check benefits for health concern matches
+            for b in r.get("benefits", []):
+                if concern.lower() in b.lower():
+                    score += 8
+                    reasons.append(f"Helps with '{b}'")
 
+        # Ingredients — but filter out generic terms that match everything
         for ingredient in intent.get("ingredients", []):
+            if ingredient.lower().strip() in GENERIC_INGREDIENT_TERMS:
+                continue  # Skip generic terms like "herbal tea"
             for ing in r.get("ingredients", []):
                 if ingredient.lower() in ing.lower():
-                    score += 2
+                    score += 3
                     reasons.append(f"Contains '{ing}'")
 
+        # Remaining benefits get a small passive boost
         for benefit in r.get("benefits", []):
-            score += 0.5
-            if len(reasons) < 4:
-                reasons.append(f"Helps with '{benefit}'")
+            # Only count benefits not already matched by health_concerns above
+            already_counted = any(benefit.lower() in r_text.lower() for r_text in reasons)
+            if not already_counted:
+                score += 0.5
+                if len(reasons) < 4:
+                    reasons.append(f"Helps with '{benefit}'")
 
         # Hybrid Lexical Scoring Boost
         for pm in pms:
@@ -273,7 +289,28 @@ def graph_search(query: str) -> tuple[list[ProductRecommendation], str]:
         scored.append((score, r, reasons))
 
     scored.sort(key=lambda x: -x[0])
-    top = scored[:5]
+
+    # Step 4: Variant Deduplication
+    # Products like "Gut Cleanse - 30 Bags" and "Gut Cleanse - 90 Bags" are the same product family.
+    # Only keep the highest-scoring variant per family.
+    import re
+    def get_product_family(title: str) -> str:
+        """Strip size/quantity suffixes to get the base product name."""
+        # Remove common variant patterns: "- 30 Tea Bags", "- 10 Teabags", "- 200g", "- 100g", "- 60 PTB", etc.
+        cleaned = re.sub(r'\s*[-–]\s*\d+\s*(tea\s*bags?|teabags?|sachets?|cups?|ptb|g\b|gm\b|ml\b|pack).*$', '', title, flags=re.IGNORECASE)
+        # Also strip trailing size numbers like "- 200g"
+        cleaned = re.sub(r'\s*[-–]\s*\d+\s*$', '', cleaned)
+        return cleaned.strip().lower()
+
+    seen_families = set()
+    deduped = []
+    for item in scored:
+        family = get_product_family(item[1]["title"])
+        if family not in seen_families:
+            seen_families.add(family)
+            deduped.append(item)
+
+    top = deduped[:5]
 
     recommendations = []
     for score, r, reasons in top:
