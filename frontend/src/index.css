@@ -699,6 +699,23 @@ body {
   font-size: 13px;
 }
 
+/* ===== GEO DEMO ===== */
+.geo-demo { padding: 30px 40px; overflow-y: auto; height: 100%; }
+.geo-header h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+.geo-subtitle { font-size: 14px; color: var(--text-secondary); margin-bottom: 24px; }
+.select-input { width: 100%; max-width: 400px; padding: 12px 16px; margin-top: 8px; cursor: pointer; }
+.schema-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; margin-bottom: 30px; }
+.schema-column { background: var(--bg-secondary); border-radius: 16px; border: 1px solid var(--border); overflow: hidden; display: flex; flex-direction: column; }
+.schema-column-header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.1); border-bottom: 1px solid var(--border); }
+.schema-column-header h3 { font-size: 14px; font-weight: 600; }
+.schema-explanation { padding: 12px 20px; font-size: 12px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.code-block { margin: 0; padding: 20px; font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.5; color: var(--text-primary); overflow-x: auto; flex: 1; }
+.enhanced-code { color: var(--accent-emerald); }
+.enhanced-schema { border: 1px solid rgba(16, 185, 129, 0.3); box-shadow: 0 0 20px rgba(16, 185, 129, 0.05); }
+.category-badge { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
+.llms-txt-section { background: var(--bg-secondary); border-radius: 16px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 40px; }
+.markdown-block { color: var(--text-secondary); }
+
 /* ===== LOADING & ERROR SCREENS ===== */
 .loading-screen, .error-screen {
   display: flex;

@@ -2,10 +2,15 @@
 
 import os
 import json
+from typing import TypedDict, List, Dict, Any
 from fastapi import APIRouter
-from openai import AzureOpenAI
 from dotenv import load_dotenv
 from pathlib import Path
+
+# LangGraph & LangChain ecosystem
+from langchain_openai import AzureChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langgraph.graph import StateGraph, END
 
 from backend.graph.neo4j_client import neo4j_client
 from backend.models.schemas import QueryRequest, QueryResponse, ProductRecommendation
@@ -14,55 +19,93 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 router = APIRouter()
 
+# ==========================================
+# LANGGRAPH: State & Nodes
+# ==========================================
+class RouterState(TypedDict):
+    query: str
+    query_type: str
+    product_mentions: List[str]
+    intent: Dict[str, Any]
 
-def get_azure_client() -> AzureOpenAI:
-    return AzureOpenAI(
-        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+def get_azure_chat_llm():
+    return AzureChatOpenAI(
+        azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini"),
         api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        temperature=0
     )
 
+def supervisor_node(state: RouterState) -> RouterState:
+    llm = get_azure_chat_llm()
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are an intelligent web store dispatcher. Classify the user query.\n"
+                   "- If the user is specifically searching for a branded product name or exact tea (e.g. 'Acid Ease', 'Gut Cleanse'), output exactly: branded_product\n"
+                   "- If the user is asking a discovery question about symptoms, occasions, or generic ingredients (e.g. 'what helps digestion?', 'tea for sleep'), output exactly: semantic_discovery\n"
+                   "Output NOTHING ELSE."),
+        ("user", "{query}")
+    ])
+    response = llm.invoke(prompt.format_messages(query=state["query"]))
+    return {"query_type": response.content.strip()[:20], "intent": {}, "product_mentions": []}
 
-def extract_query_intent(query: str) -> dict:
-    """Use LLM to extract intent entities from a natural language query."""
-    client = get_azure_client()
-    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
+def lexical_node(state: RouterState) -> RouterState:
+    """Invoked when the user just wants a specific product. Bypasses the heavy hallucination-prone intent extraction."""
+    # Since the supervisor confirmed it's a branded search, we use the raw query for direct lexical matching.
+    return {"product_mentions": [state["query"].strip()], "intent": {}}
 
-    response = client.chat.completions.create(
-        model=deployment,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a query parser for a herbal tea store. Extract structured intent from the user's query. "
-                    "Return ONLY a JSON object with these fields (use empty lists if not applicable):\n"
-                    '{"health_concerns": [], "ingredients": [], "occasions": [], "use_cases": [], "price_preference": null}'
-                ),
-            },
-            {"role": "user", "content": query},
-        ],
-        temperature=0.0,
-        max_tokens=300,
-    )
-
-    content = response.choices[0].message.content.strip()
+def semantic_node(state: RouterState) -> RouterState:
+    """Invoked for generic discovery to traverse the graph."""
+    llm = get_azure_chat_llm()
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a graph parameter extractor. Extract semantic attributes from the user's query.\n"
+                   "Return ONLY a JSON object with these fields (use empty lists if not applicable):\n"
+                   '{{"health_concerns": [], "ingredients": [], "occasions": [], "use_cases": []}}'),
+        ("user", "{query}")
+    ])
+    response = llm.invoke(prompt.format_messages(query=state["query"]))
+    
+    content = response.content.strip()
     if content.startswith("```"):
-        content = content.split("\n", 1)[-1]
-        if content.endswith("```"):
-            content = content[:-3]
-        content = content.strip()
-
+        content = content.split("\n", 1)[-1].replace("```json", "").replace("```", "").strip()
+        
     try:
-        return json.loads(content)
+        intent = json.loads(content)
     except json.JSONDecodeError:
-        return {"health_concerns": [], "ingredients": [], "occasions": [], "use_cases": []}
+        intent = {"health_concerns": [], "ingredients": [], "occasions": [], "use_cases": []}
+        
+    return {"intent": intent, "product_mentions": []}
+
+def build_intent_graph():
+    workflow = StateGraph(RouterState)
+    workflow.add_node("supervisor", supervisor_node)
+    workflow.add_node("lexical", lexical_node)
+    workflow.add_node("semantic", semantic_node)
+    
+    workflow.set_entry_point("supervisor")
+    
+    def route_query(state: RouterState):
+        if "branded" in state["query_type"].lower():
+            return "lexical"
+        return "semantic"
+        
+    workflow.add_conditional_edges("supervisor", route_query, {
+        "lexical": "lexical",
+        "semantic": "semantic"
+    })
+    
+    workflow.add_edge("lexical", END)
+    workflow.add_edge("semantic", END)
+    
+    return workflow.compile()
+
+# Compile the graph globally
+intent_graph = build_intent_graph()
 
 
+# ==========================================
+# SEARCH PROCESSORS
+# ==========================================
 def flat_search(query: str) -> list[ProductRecommendation]:
-    """
-    Simulated flat RAG search — basic text matching against product titles and descriptions.
-    This represents what a standard vector search returns (simplified for demo).
-    """
+    """Simulated flat RAG search — basic text matching against product titles and descriptions."""
     query_lower = query.lower()
     keywords = query_lower.split()
 
@@ -104,19 +147,22 @@ def flat_search(query: str) -> list[ProductRecommendation]:
 
 def graph_search(query: str) -> tuple[list[ProductRecommendation], str]:
     """
-    GraphRAG search — extracts intent, traverses the knowledge graph,
-    returns products with relationship-based reasoning.
+    GraphRAG search — routes via LangGraph intent state machine,
+    traverses the knowledge graph, and returns graph-scored products.
     """
-    # Step 1: Extract intent
-    intent = extract_query_intent(query)
+    # Step 1: Execute LangGraph
+    state = intent_graph.invoke({"query": query})
+    query_type = state.get("query_type", "unknown")
+    intent = state.get("intent", {})
+    pms = state.get("product_mentions", [])
+    
     graph_path_parts = [f"Query: '{query}'"]
-    graph_path_parts.append(f"Extracted intent: {json.dumps(intent)}")
+    graph_path_parts.append(f"LangGraph execution: {query_type} path")
+    graph_path_parts.append(f"Extracted parameters: intent={intent}, lexical={pms}")
 
-    # Step 2: Build dynamic Cypher query based on extracted intent
-    cypher_parts = ["MATCH (p:Product)"]
-    where_clauses = []
+    # Step 2: Build dynamic Cypher query
     optional_matches = []
-
+    
     # Match health concerns
     if intent.get("health_concerns"):
         for concern in intent["health_concerns"]:
@@ -145,7 +191,20 @@ def graph_search(query: str) -> tuple[list[ProductRecommendation], str]:
                 f"OPTIONAL MATCH (p)-[:USED_FOR]->(uc:UseCase) WHERE toLower(uc.name) CONTAINS toLower('{use_case}')"
             )
 
-    # Always get ingredients and pairings for context
+    # Build dynamic WHERE clause to ensure hybrid retrieval
+    where_conditions = []
+    if intent.get("health_concerns") or intent.get("ingredients") or intent.get("occasions") or intent.get("use_cases"):
+        where_conditions.append("size(ingredients) > 0 OR size(concerns) > 0")
+        
+    for pm in pms:
+        pm_clean = pm.replace("'", "\\'") # Safety
+        where_conditions.append(f"toLower(p.title) CONTAINS toLower('{pm_clean}')")
+        
+    where_clause = ""
+    if where_conditions:
+        where_clause = "WHERE " + " OR ".join(where_conditions)
+
+    # Always get context graph components
     full_query = f"""
         MATCH (p:Product)
         {chr(10).join(optional_matches)}
@@ -158,28 +217,23 @@ def graph_search(query: str) -> tuple[list[ProductRecommendation], str]:
              collect(DISTINCT paired.title) AS pairings,
              collect(DISTINCT all_hc.name) AS concerns,
              collect(DISTINCT all_hb.name) AS benefits
-        WHERE size(ingredients) > 0 OR size(concerns) > 0
+        {where_clause}
         RETURN p.title AS title, p.price AS price, p.url AS url,
                p.image_url AS image_url,
                ingredients, pairings, concerns, benefits
-        LIMIT 10
+        LIMIT 15
     """
 
     results = neo4j_client.run_query(full_query)
 
     if not results:
-        graph_path_parts.append("No graph matches found, falling back to all products")
+        graph_path_parts.append("No matches found, falling back")
         results = neo4j_client.run_query(
             """
             MATCH (p:Product)
-            OPTIONAL MATCH (p)-[:CONTAINS]->(ing:Ingredient)
-            OPTIONAL MATCH (p)-[:ADDRESSES]->(hc:HealthConcern)
             RETURN p.title AS title, p.price AS price, p.url AS url,
                    p.image_url AS image_url,
-                   collect(DISTINCT ing.name) AS ingredients,
-                   [] AS pairings,
-                   collect(DISTINCT hc.name) AS concerns,
-                   [] AS benefits
+                   [] AS ingredients, [] AS pairings, [] AS concerns, [] AS benefits
             LIMIT 5
             """
         )
@@ -206,6 +260,12 @@ def graph_search(query: str) -> tuple[list[ProductRecommendation], str]:
             score += 0.5
             if len(reasons) < 4:
                 reasons.append(f"Helps with '{benefit}'")
+
+        # Hybrid Lexical Scoring Boost
+        for pm in pms:
+            if pm.lower() in r["title"].lower():
+                score += 50  # Overrides semantic logic
+                reasons.insert(0, f"★ Exact product match: '{pm}'")
 
         if r.get("pairings"):
             reasons.append(f"Pairs well with: {', '.join(r['pairings'][:3])}")
@@ -238,7 +298,6 @@ def graph_search(query: str) -> tuple[list[ProductRecommendation], str]:
 async def query_endpoint(request: QueryRequest):
     """
     Query the product catalog using either flat search or GraphRAG.
-    This is the key demo endpoint showing the GraphRAG advantage.
     """
     if request.mode == "flat":
         results = flat_search(request.query)

@@ -3,13 +3,15 @@ import GraphViewer from './components/GraphViewer'
 import QueryDemo from './components/QueryDemo'
 import GraphStats from './components/GraphStats'
 import NodeDetail from './components/NodeDetail'
+import GeoDemo from './components/GeoDemo'
 import './index.css'
 
-const API_BASE = 'http://localhost:8000/api'
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
 const TABS = [
   { id: 'graph', label: '🔮 Knowledge Graph', icon: '◉' },
   { id: 'query', label: '⚡ Query Demo', icon: '⚡' },
+  { id: 'geo', label: '🚀 GEO Optimizer', icon: '🚀' },
 ]
 
 function App() {
@@ -120,6 +122,10 @@ function App() {
 
         {activeTab === 'query' && (
           <QueryDemo apiBase={API_BASE} />
+        )}
+
+        {activeTab === 'geo' && (
+          <GeoDemo apiBase={API_BASE} />
         )}
       </main>
     </div>

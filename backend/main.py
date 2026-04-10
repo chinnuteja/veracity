@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.graph_data import router as graph_router
 from backend.api.query_router import router as query_router
+from backend.api.geo_router import router as geo_router
 from backend.graph.neo4j_client import neo4j_client
 from backend.ingestion.shopify_fetcher import (
     fetch_all_products,
@@ -45,6 +46,7 @@ app.add_middleware(
 # Mount routers
 app.include_router(graph_router, prefix="/api", tags=["Graph"])
 app.include_router(query_router, prefix="/api", tags=["Query"])
+app.include_router(geo_router, prefix="/api/geo", tags=["GEO-Emission"])
 
 
 @app.get("/")
