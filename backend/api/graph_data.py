@@ -29,7 +29,7 @@ async def get_full_graph():
         """
         MATCH (n)
         RETURN
-            id(n) AS neo4j_id,
+            elementId(n) AS neo4j_id,
             labels(n)[0] AS label_type,
             properties(n) AS props
         """
@@ -40,8 +40,8 @@ async def get_full_graph():
         """
         MATCH (a)-[r]->(b)
         RETURN
-            id(a) AS source_id,
-            id(b) AS target_id,
+            elementId(a) AS source_id,
+            elementId(b) AS target_id,
             type(r) AS rel_type,
             properties(r) AS props
         """
