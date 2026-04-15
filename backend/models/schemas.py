@@ -7,6 +7,7 @@ from typing import Optional
 class CleanProduct(BaseModel):
     """A cleaned, structured product parsed from Shopify raw JSON."""
     shopify_id: int
+    variant_id: Optional[int] = None
     title: str
     handle: str
     description: str = ""

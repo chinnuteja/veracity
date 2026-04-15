@@ -47,6 +47,7 @@ app.add_middleware(
 app.include_router(graph_router, prefix="/api", tags=["Graph"])
 app.include_router(query_router, prefix="/api", tags=["Query"])
 app.include_router(geo_router, prefix="/api/geo", tags=["GEO-Emission"])
+app.include_router(ucp_router, prefix="/api/ucp", tags=["UCP Checkout Protocol"])
 
 
 @app.get("/")

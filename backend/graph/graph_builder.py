@@ -45,6 +45,7 @@ def build_product_node(product: CleanProduct, client=None):
         """
         MERGE (p:Product {shopify_id: $shopify_id})
         SET p.title = $title,
+            p.variant_id = $variant_id,
             p.handle = $handle,
             p.description = $description,
             p.price = $price,
@@ -59,6 +60,7 @@ def build_product_node(product: CleanProduct, client=None):
         """,
         {
             "shopify_id": product.shopify_id,
+            "variant_id": product.variant_id,
             "title": product.title,
             "handle": product.handle,
             "description": product.description[:500],  # Truncate for Neo4j

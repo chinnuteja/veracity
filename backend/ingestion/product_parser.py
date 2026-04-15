@@ -60,6 +60,7 @@ def parse_product(raw: dict) -> CleanProduct:
 
     return CleanProduct(
         shopify_id=raw["id"],
+        variant_id=first_variant.get("id"),
         title=title,
         handle=handle,
         description=strip_html(raw.get("body_html")),

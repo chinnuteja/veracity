@@ -176,6 +176,11 @@ async def generate_llms_txt():
 
     lines.extend([
         "",
+        "## Agentic Commerce / UCP Endpoints",
+        "> This catalog supports the Universal Commerce Protocol (UCP) for direct AI checkouts.",
+        "- **Resolve Product:** `POST /api/ucp/resolve` (Requires `shopify_id` in JSON body)",
+        "- **Generate Checkout:** `POST /api/ucp/checkout` (Returns native Shopify Cart Permalink for 1-click buy)",
+        "",
         "---",
         "Generated dynamically by the Helio AI Knowledge Graph."
     ])
