@@ -4,6 +4,7 @@ import QueryDemo from './components/QueryDemo'
 import GraphStats from './components/GraphStats'
 import NodeDetail from './components/NodeDetail'
 import GeoDemo from './components/GeoDemo'
+import StoreIngestion from './components/StoreIngestion'
 import './index.css'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
@@ -12,6 +13,7 @@ const TABS = [
   { id: 'graph', label: '🔮 Knowledge Graph', icon: '◉' },
   { id: 'query', label: '⚡ Query Demo', icon: '⚡' },
   { id: 'geo', label: '🚀 GEO Optimizer', icon: '🚀' },
+  { id: 'ingest', label: '📥 Add Store', icon: '📥' },
 ]
 
 function App() {
@@ -22,24 +24,25 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true)
-        const [graphRes, statsRes] = await Promise.all([
-          fetch(`${API_BASE}/graph`).then(r => r.json()),
-          fetch(`${API_BASE}/graph/stats`).then(r => r.json()),
-        ])
-        setGraphData(graphRes)
-        setStats(statsRes)
-        setError(null)
-      } catch (err) {
-        setError('Failed to connect to API. Make sure the FastAPI server is running on port 8000.')
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+      const [graphRes, statsRes] = await Promise.all([
+        fetch(`${API_BASE}/graph`).then(r => r.json()),
+        fetch(`${API_BASE}/graph/stats`).then(r => r.json()),
+      ])
+      setGraphData(graphRes)
+      setStats(statsRes)
+      setError(null)
+    } catch (err) {
+      setError('Failed to connect to API. Make sure the FastAPI server is running on port 8000.')
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     fetchData()
   }, [])
 
@@ -126,6 +129,16 @@ function App() {
 
         {activeTab === 'geo' && (
           <GeoDemo apiBase={API_BASE} />
+        )}
+
+        {activeTab === 'ingest' && (
+          <StoreIngestion 
+            apiBase={API_BASE} 
+            onIngestSuccess={() => {
+              fetchData();
+              setActiveTab('graph');
+            }} 
+          />
         )}
       </main>
     </div>

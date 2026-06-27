@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api.graph_data import router as graph_router
 from backend.api.query_router import router as query_router
 from backend.api.geo_router import router as geo_router
+from backend.api.ucp_router import router as ucp_router
 from backend.graph.neo4j_client import neo4j_client
 from backend.ingestion.shopify_fetcher import (
     fetch_all_products,
@@ -77,11 +78,16 @@ async def run_ingestion_pipeline(
     print("=" * 60)
 
     # Step 1: Fetch
-    print("\n📦 Step 1: Fetching products from Shopify...")
-    try:
-        raw_products = load_raw_products()
-        print(f"  Using cached data ({len(raw_products)} products)")
-    except FileNotFoundError:
+    print(f"\n📦 Step 1: Fetching products from Shopify ({store_url})...")
+    raw_products = None
+    if use_cache:
+        try:
+            raw_products = load_raw_products()
+            print(f"  Using cached data ({len(raw_products)} products)")
+        except FileNotFoundError:
+            pass
+            
+    if raw_products is None:
         raw_products = await fetch_all_products(store_url, product_limit)
         save_raw_products(raw_products)
 
