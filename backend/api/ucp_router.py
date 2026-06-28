@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from backend.graph.neo4j_client import neo4j_client
-from backend.ingestion.product_parser import STORE_URL
+
 
 router = APIRouter()
 
@@ -30,7 +30,7 @@ async def ucp_resolve(request: UCPResolveRequest):
     result = neo4j_client.run_query(
         """
         MATCH (p:Product {shopify_id: $sid})
-        RETURN p.price AS price, p.available AS available, p.variant_id AS variant_id
+        RETURN p.price AS price, p.available AS available, p.variant_id AS variant_id, p.url AS url
         """,
         {"sid": request.shopify_id}
     )
@@ -40,8 +40,11 @@ async def ucp_resolve(request: UCPResolveRequest):
 
     p = result[0]
     
+    # Extract base store URL from the product's URL
+    store_url = p.get("url", "").split("/products/")[0] if "/products/" in p.get("url", "") else ""
+    
     # Generate the Shopify Cart Permalink if available
-    checkout_url = f"{STORE_URL}/cart/{p['variant_id']}:1" if p.get("variant_id") else f"{STORE_URL}"
+    checkout_url = f"{store_url}/cart/{p['variant_id']}:1" if p.get("variant_id") and store_url else store_url
 
     return UCPResolveResponse(
         available=p.get("available", False),
@@ -58,7 +61,7 @@ async def ucp_checkout(request: UCPResolveRequest):
     result = neo4j_client.run_query(
         """
         MATCH (p:Product {shopify_id: $sid})
-        RETURN p.variant_id AS variant_id, p.title AS title
+        RETURN p.variant_id AS variant_id, p.title AS title, p.url AS url
         """,
         {"sid": request.shopify_id}
     )
@@ -72,8 +75,10 @@ async def ucp_checkout(request: UCPResolveRequest):
     if not variant_id:
          raise HTTPException(status_code=400, detail="Product variant ID missing, cannot create 1-click cart.")
 
+    store_url = p.get("url", "").split("/products/")[0] if "/products/" in p.get("url", "") else ""
+    
     # Shopify Cart Permalink Structure: store_url/cart/variant_id:quantity
-    cart_url = f"{STORE_URL}/cart/{variant_id}:1"
+    cart_url = f"{store_url}/cart/{variant_id}:1" if store_url else ""
     
     return {
         "status": "success",
