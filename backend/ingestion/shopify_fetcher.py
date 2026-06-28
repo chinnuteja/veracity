@@ -16,6 +16,11 @@ async def fetch_all_products(store_url: str, limit: int = 50) -> list[dict]:
     Fetch products from the Shopify public /products.json endpoint.
     Paginates until we have `limit` products or no more pages.
     """
+    # Clean up the URL in case the user pasted the exact endpoint or added a trailing slash
+    store_url = store_url.rstrip("/")
+    if store_url.endswith("/products.json"):
+        store_url = store_url[:-14]
+
     all_products = []
     page = 1
 
