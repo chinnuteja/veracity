@@ -67,7 +67,7 @@ export default function NodeDetail({ node, graphData, onClose }) {
           )}
           {node.metadata?.url && (
             <a href={node.metadata.url} target="_blank" rel="noopener noreferrer" className="product-link">
-              View on Blue Tea →
+              View in Store →
             </a>
           )}
         </div>

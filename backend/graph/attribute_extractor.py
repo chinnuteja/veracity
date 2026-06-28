@@ -12,8 +12,8 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
-EXTRACTION_PROMPT = """You are analyzing a product from an herbal tea e-commerce store called Blue Tea (India).
-Given the product data below, extract structured semantic attributes.
+EXTRACTION_PROMPT = """You are analyzing a product from an e-commerce store.
+Given the product data below, extract structured semantic attributes, inferring context where necessary.
 
 Product Title: {title}
 Product Description: {description}
@@ -22,7 +22,7 @@ Product Type: {product_type}
 Price: ₹{price}
 
 Extract the following as a JSON object. Be thorough — infer from context where the description is sparse.
-For a tea product with no description, infer likely ingredients and benefits from the product title.
+For a product with no description, infer likely attributes from the product title and tags.
 
 {{
   "ingredients": ["list every ingredient, herb, spice, or flower mentioned or implied"],
@@ -67,7 +67,7 @@ def extract_attributes_for_product(
     response = client.chat.completions.create(
         model=deployment,
         messages=[
-            {"role": "system", "content": "You are a product data analyst specializing in herbal teas and wellness products. Return only valid JSON."},
+            {"role": "system", "content": "You are a product data analyst. Return only valid JSON."},
             {"role": "user", "content": prompt},
         ],
         temperature=0.1,  # Low temperature for consistent extraction

@@ -5,6 +5,7 @@ import GraphStats from './components/GraphStats'
 import NodeDetail from './components/NodeDetail'
 import GeoDemo from './components/GeoDemo'
 import StoreIngestion from './components/StoreIngestion'
+import EmptyState from './components/EmptyState'
 import './index.css'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
@@ -79,7 +80,7 @@ function App() {
           <div className="header-text">
             <h1>Helio Veracity Layer</h1>
             <p className="header-subtitle">
-              Semantic Knowledge Graph — Blue Tea × Helio AI
+              Universal Shopify Integration
             </p>
           </div>
         </div>
@@ -105,12 +106,14 @@ function App() {
         {activeTab === 'graph' && (
           <div className="graph-layout">
             <div className="graph-container">
-              {graphData && (
+              {graphData && stats?.total_nodes > 0 ? (
                 <GraphViewer
                   data={graphData}
                   onNodeClick={handleNodeClick}
                   selectedNode={selectedNode}
                 />
+              ) : (
+                !loading && <EmptyState onAddStore={() => setActiveTab('ingest')} />
               )}
             </div>
             {selectedNode && (

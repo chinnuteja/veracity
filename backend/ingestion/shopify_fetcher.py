@@ -7,12 +7,11 @@ from pathlib import Path
 from backend.models.schemas import CleanProduct
 
 
-STORE_URL = "https://bluetea.co.in"
 PRODUCTS_PER_PAGE = 250  # Shopify max
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
 
-async def fetch_all_products(store_url: str = STORE_URL, limit: int = 50) -> list[dict]:
+async def fetch_all_products(store_url: str, limit: int = 50) -> list[dict]:
     """
     Fetch products from the Shopify public /products.json endpoint.
     Paginates until we have `limit` products or no more pages.
@@ -43,7 +42,7 @@ async def fetch_all_products(store_url: str = STORE_URL, limit: int = 50) -> lis
     return all_products
 
 
-def save_raw_products(products: list[dict], filename: str = "bluetea_raw.json") -> Path:
+def save_raw_products(products: list[dict], filename: str = "store_raw.json") -> Path:
     """Save raw product JSON to data directory for caching/reproducibility."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     filepath = DATA_DIR / filename
@@ -53,7 +52,7 @@ def save_raw_products(products: list[dict], filename: str = "bluetea_raw.json") 
     return filepath
 
 
-def load_raw_products(filename: str = "bluetea_raw.json") -> list[dict]:
+def load_raw_products(filename: str = "store_raw.json") -> list[dict]:
     """Load previously cached raw product JSON."""
     filepath = DATA_DIR / filename
     if not filepath.exists():

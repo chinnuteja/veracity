@@ -1,3 +1,4 @@
+
 """
 Shopify Product Fetcher for Helio Veracity Practice Rewrite.
 This module handles the extraction of raw data from the Shopify public API.

@@ -6,8 +6,6 @@ from bs4 import BeautifulSoup
 from backend.models.schemas import CleanProduct
 
 
-STORE_URL = "https://bluetea.co.in"
-
 
 def strip_html(html_string: str | None) -> str:
     """Remove HTML tags and clean up whitespace from Shopify body_html."""
@@ -20,7 +18,7 @@ def strip_html(html_string: str | None) -> str:
     return text
 
 
-def parse_product(raw: dict) -> CleanProduct:
+def parse_product(raw: dict, store_url: str = "") -> CleanProduct:
     """Convert a raw Shopify product dict into a CleanProduct."""
     # Get the first available variant for pricing
     variants = raw.get("variants", [])
@@ -46,7 +44,7 @@ def parse_product(raw: dict) -> CleanProduct:
 
     # Build the product URL
     handle = raw.get("handle", "")
-    url = f"{STORE_URL}/products/{handle}" if handle else ""
+    url = f"{store_url}/products/{handle}" if handle and store_url else ""
 
     # Check availability
     available = any(v.get("available", False) for v in variants)
@@ -76,12 +74,12 @@ def parse_product(raw: dict) -> CleanProduct:
     )
 
 
-def parse_all_products(raw_products: list[dict]) -> list[CleanProduct]:
+def parse_all_products(raw_products: list[dict], store_url: str = "") -> list[CleanProduct]:
     """Parse a list of raw Shopify products into CleanProduct objects."""
     products = []
     skipped = 0
     for raw in raw_products:
-        product = parse_product(raw)
+        product = parse_product(raw, store_url)
         # Skip free gift products (price = 0) — they clutter the graph
         if product.price <= 0 and "freebie" in " ".join(product.tags).lower():
             skipped += 1

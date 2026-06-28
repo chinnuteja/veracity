@@ -62,7 +62,7 @@ async def root():
 
 @app.post("/api/ingest")
 async def run_ingestion_pipeline(
-    store_url: str = "https://bluetea.co.in",
+    store_url: str,
     product_limit: int = 50,
     use_cache: bool = True,
 ):
@@ -93,7 +93,7 @@ async def run_ingestion_pipeline(
 
     # Step 2: Parse
     print("\n🧹 Step 2: Parsing and cleaning product data...")
-    clean_products = parse_all_products(raw_products)
+    clean_products = parse_all_products(raw_products, store_url)
 
     # Step 3: Extract attributes
     print("\n🧠 Step 3: Extracting semantic attributes via Azure OpenAI...")
